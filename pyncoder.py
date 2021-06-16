@@ -1,4 +1,4 @@
-#!/usr/bin/python3.9
+#!/usr/bin/python3
 
 ##################################################################################################################
 # Name          : pynCoder.py                                                                                    #
@@ -10,8 +10,6 @@
 #                                                                                                                #
 #                 It's not recommended to rely on this tool to encode any passwords or confidential document in  #
 #                 **Plain Text** since it won't hash or encrypt them in anyway.                                  #
-#                                                                                                                #
-#                 However you could encode an already encrypted password or text, which might be more secure     #
 ##################################################################################################################
 
 import base64
@@ -141,14 +139,6 @@ def isMorse(line):
             return False
     return True
 
-def isRot13(line):
-
-    return
-
-def isRot18(line):
-
-    return
-
 def isRot47(line):
     normality_constance = 0
     max_norm_occurence = 0
@@ -167,9 +157,7 @@ def isRot47(line):
         return False
     else:
         return True
-# permitted : 97 - 102 a-f
-#             65 - 70  A-f
-#             48 - 57  0-9
+
 def isHex(line):
     for char in line:
         if not (ord(char.upper()) >= 65 and ord(char.upper()) <= 70):
@@ -181,9 +169,7 @@ def isBase32(line):
     for char in line:
         if char == " ":
             return False
-        if ord(char) <= 47:
-            return False
-        if ord(char) > 96:
+        if ord(char) <= 47 or ord(char) > 96 :
             return False
         if ord(char) < 65 and ord(char) != 61:
             if ord(char)>= 48 and ord(char) <=57:
@@ -198,11 +184,12 @@ def isBase64(line):
     for char in line:
         if char == " ":
             return False
-        if ord(char) <= 47:
-            return False
-        if ord(char) >=91 and ord(char) < 97:
+        if (ord(char) >=91 and ord(char) < 97) or ord(char) <= 47:
             return False
     return True
+
+# Encoding Detection functions map
+detectFns = {'-m':isMorse, '-hex':isHex, '-b32':isBase32, '-b64':isBase64, '-r47':isRot47}
 
 def encode_decodeMorse(line):
     global ACTION
@@ -312,7 +299,8 @@ def encode_decodeBaseHex(line):
             newLineBytes = binascii.unhexlify(lineBytes)
         newLine = newLineBytes.decode('ascii')
     except:
-        print('Couldn\'t encode over the {0} iteration'.format(str(TUMBLING_CYCLE)), file=sys.stderr)
+        if ACTION == '-e' or ACTION == '-E':
+            print('Couldn\'t encode over the {0} iteration'.format(str(TUMBLING_CYCLE)), file=sys.stderr)
         return line
     return newLine
 
@@ -328,7 +316,8 @@ def encode_decodeBase32(line):
             newLineBytes = base64.b32decode(lineBytes)
         newLine = newLineBytes.decode('ascii')
     except:
-        print('Couldn\'t encode over the {0} iteration'.format(str(TUMBLING_CYCLE)), file=sys.stderr)
+        if ACTION == '-e' or ACTION == '-E':
+            print('Couldn\'t encode over the {0} iteration'.format(str(TUMBLING_CYCLE)), file=sys.stderr)
         return line
     return newLine
 
@@ -344,16 +333,15 @@ def encode_decodeBase64(line):
             newLineBytes = base64.b64decode(lineBytes)
         newLine = newLineBytes.decode('ascii')
     except:
-        print('Couldn\'t encode over the {0} iteration'.format(str(TUMBLING_CYCLE)))
+        if ACTION == '-e' or ACTION == '-E':
+            print('Couldn\'t encode over the {0} iteration'.format(str(TUMBLING_CYCLE)), file=sys.stderr)
         return line
     return newLine
 
-def encode_decodeFile(filePath):
-    inputFileContent = loadFile(filePath)
-    outputFileContent = []
-    for line in inputFileContent:
-        outputFileContent.append(cycleIterator(line))
-
+def encode_decodeFile():
+    inputFileContent = loadFile()
+    outputFileContent = cycleIterator(inputFileContent)
+    writeOutputToFile(outputFileContent)
     return outputFileContent
 
 def algorithmSelector(line):
@@ -363,7 +351,7 @@ def algorithmSelector(line):
     if MODE == "-hex" or MODE == "-HEX":
         line = encode_decodeBaseHex(line)
     elif MODE == "-b32" or MODE == "-B32":
-        line = encode_decodeBase32(line.upper())
+        line = encode_decodeBase32(line)
     elif MODE == "-b64" or MODE == "-B64":
         line = encode_decodeBase64(line)
     elif MODE == "-r13" or MODE == "-R13":
@@ -388,51 +376,37 @@ def cycleIterator(line):
     origin_line = line
     for i in range (0, TUMBLING_CYCLE):
         line = algorithmSelector(line)
-
         newMode = cipherMap[detectEncoding(line)]
-        if origin_line == line or (len(line) == len(origin_line) and newMode == "Done"):
-            STOP_AUTO = True
-            print('\t{0}{1} ] →  Output\t: {2}\n'.format( "\033[90m ∟"," [DONE {0}".format("\u2713"),line))
-        else:
-            print('{0} {1} [CYCLE {4}] →  {2}\t: {3}'.format(("\t")*1, "∟", newMode ,line, i + 1))
+
+        if not ACTION[1:2].isupper():
+            if origin_line == line or (len(line) == len(origin_line) and newMode == "Done"):
+                STOP_AUTO = True
+                print('\t{0}{1} ] →  Output\t: {2}\n'.format( "\033[90m ∟" if os.name == 'posix' else ''," [DONE {0}".format("\u2713"),line))
+            else:
+                print('{0} {1} [CYCLE {4}] →  {2}\t: {3}'.format(("\t")*1, "∟", newMode ,line, i + 1))
+
         time.sleep(0.5)
+
+    if ACTION[1:2].isupper():
+        print('\t{0}{1} ] →  {2}\t: {3} \n'.format( "\033[90m ∟" if os.name == 'posix' else ' ∟'," [DONE {0}".format("\u2713"), INPUT_PATH, 'Encoded' if ACTION[1:2] == 'E' else 'Decoded'))
     return line
 
 def detectEncoding(line):
-    #TODO: Should try to Map all functions and iterate over them in a for loop instead
-    if not isMorse(line):
-        if not isHex(line):
-            if not isBase32(line):
-                if not isBase64(line):
-                    if not isRot47(line):
-                        return '-done'
-                    #    if not isRot18(line):
-                    #        if not isRot13(line):
-                    #            #print ("\n pynCoder wasn't able to Auto-detect the cipher encoding\n")
-                    #            return '-done'
-                    #        else:
-                    #            return '-r13'
-                    #    else:
-                    #        return '-r18'
-                    else:
-                        return '-r47'
-                else:
-                    return '-b64'
-            else:
-                return '-b32'
-        else:
-            return '-hex'
-    else:
-        return '-m'
+    i = 0
+    for key in detectFns:
+        if detectFns[key](line):
+            return list(detectFns.keys())[i]
+        i += 1
+    return '-done' 
 
-def loadFile(filePath):
-    with open (filePath, 'r') as inputReader:
-        inputFileContent = inputReader.readlines()
-        for x in range (0, len(inputFileContent) -1) :
-            inputFileContent[x] = inputFileContent[x].replace("\n", "")
+def loadFile():
+    with open (INPUT_PATH, 'r') as fileReader:
+        inputFileContent = fileReader.read()
     return inputFileContent
 
-def writeOutputToFile():
+def writeOutputToFile(outputFileContent):
+    with open (INPUT_PATH, 'w') as fileWriter:
+        fileWriter.write(outputFileContent)
     return
 
 def initArgs():
@@ -451,7 +425,7 @@ def initArgs():
             try:                
                 if int((sys.argv[x])[2: len(sys.argv[x])]) > 4:
                     TUMBLING_CYCLE = 4
-                    print("\n {1}Tumbling cycle as been set to {0} to increase stability".format(TUMBLING_CYCLE, "\033[133m"))
+                    print("\n {1}Tumbling cycle as been set to {0} to increase stability".format(TUMBLING_CYCLE, "\033[133m" if os.name == 'posix' else ''))
                 else:
                     TUMBLING_CYCLE = int((sys.argv[x])[2: len(sys.argv[x])])
             except:
@@ -497,15 +471,19 @@ def main():
     if TUMBLING_CYCLE > 0: 
         if (MODE == '-a' or MODE == '-A') and (ACTION == '-d' or ACTION == '-D'):
             print("   Trying to Auto-Detect cipher encoding...\n")
-            MODE = detectEncoding(CIPHER)
-            output = CIPHER
+            if ACTION[1:2] == 'D':
+                print("   Auto-Detect file encoding is supported yet...\n")
+                exit()
+            else:
+                output = CIPHER
+            MODE = detectEncoding(output)
             print('{0} {1} [ORIGIN ] →  {2}\t: {3}'.format(("\t")*1, "∟", cipherMap[MODE] ,CIPHER))
             while STOP_AUTO == False:
                 output = cycleIterator(output)
                 MODE = detectEncoding(output)
         elif ACTION == '-E'  or ACTION == '-D' :
             print('{0} {1} [ORIGIN ] →  {2}\t: {3}'.format(("\t")*1, "∟", "File input" ,INPUT_PATH))
-            output = encode_decodeFile(INPUT_PATH, TUMBLING_CYCLE, ACTION, MODE)
+            output = encode_decodeFile()
         elif ACTION == '-e' or ACTION == '-d':
             print('{0} {1} [ORIGIN ] →  {2}\t: {3}'.format(("\t")*1, "∟", "String input" ,CIPHER))  
             output = cycleIterator(CIPHER)
