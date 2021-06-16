@@ -1,6 +1,6 @@
 # pynCoder
 
-## Contribution
+## Contributions
 
 Contributions are welcome, just send me an email and we will work something out together!
 
